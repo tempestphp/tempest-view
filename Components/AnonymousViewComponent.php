@@ -8,22 +8,26 @@ use Tempest\View\Elements\GenericElement;
 use Tempest\View\ViewComponent;
 use Tempest\View\ViewRenderer;
 
-final readonly class Form implements ViewComponent
+final readonly class AnonymousViewComponent implements ViewComponent
 {
+    public function __construct(
+        private string $contents,
+        private string $file,
+    ) {
+    }
+
     public static function getName(): string
     {
-        return 'x-form';
+        return 'x-component';
     }
 
     public function render(GenericElement $element, ViewRenderer $renderer): string
     {
-        $action = $element->getAttribute('action');
-        $method = $element->getAttribute('method') ?? 'post';
+        return $this->contents;
+    }
 
-        return <<<HTML
-<form action="{$action}" method="{$method}">
-    <x-slot />
-</form>
-HTML;
+    public function getPath(): string
+    {
+        return $this->file;
     }
 }
