@@ -8,7 +8,7 @@ use Exception;
 use Masterminds\HTML5;
 use ParseError;
 use Tempest\Container\Container;
-use Tempest\Core\AppConfig;
+use Tempest\Core\Kernel;
 use function Tempest\path;
 use Tempest\View\Attributes\AttributeFactory;
 use Tempest\View\Element;
@@ -33,7 +33,7 @@ final class TempestViewRenderer implements ViewRenderer
     public function __construct(
         private readonly ElementFactory $elementFactory,
         private readonly AttributeFactory $attributeFactory,
-        private readonly AppConfig $appConfig,
+        private readonly Kernel $kernel,
         private readonly ViewConfig $viewConfig,
         private readonly Container $container,
     ) {
@@ -150,7 +150,7 @@ final class TempestViewRenderer implements ViewRenderer
             return ob_get_clean();
         }
 
-        $discoveryLocations = $this->appConfig->discoveryLocations;
+        $discoveryLocations = $this->kernel->discoveryLocations;
 
         while (! file_exists($path) && $location = current($discoveryLocations)) {
             $path = path($location->path, $view->getPath());
@@ -306,7 +306,8 @@ final class TempestViewRenderer implements ViewRenderer
         return "<{$element->getTag()}{$attributes}>{$content}</{$element->getTag()}>";
     }
 
-    private function resolveContentIsolated(string $_path, array $_data): string {
+    private function resolveContentIsolated(string $_path, array $_data): string
+    {
         ob_start();
 
         extract($_data, flags: EXTR_SKIP);
