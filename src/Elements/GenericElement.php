@@ -54,9 +54,18 @@ final class GenericElement implements Element
                     return $value;
                 }
 
-                return $this->eval($value)
-                    ?? $this->getData()[ltrim($value, '$')]
-                    ?? '';
+                // TODO: possible refactor with TextElement:25-29 ?
+                if (str_starts_with($value, '$this->')) {
+                    $result = $this->view->eval($value);
+
+                    if (is_bool($result) || is_string($result)) {
+                        return $result;
+                    }
+
+                    return (bool) $result;
+                }
+
+                return $this->getData()[ltrim($value, '$')] ?? '';
             }
         }
 
@@ -94,38 +103,14 @@ final class GenericElement implements Element
 
     public function getData(?string $key = null): mixed
     {
-        if ($key && $this->hasAttribute($key)) {
-            return $this->getAttribute($key);
-        }
-
         $parentData = $this->getParent()?->getData() ?? [];
 
-        $data = [...$this->attributes, ...$this->view->getData(), ...$parentData, ...$this->data];
+        $data = [...$this->view->getData(), ...$parentData, ...$this->data];
 
         if ($key) {
             return $data[$key] ?? null;
         }
 
         return $data;
-    }
-
-    private function eval(string $eval): mixed
-    {
-        $data = $this->getData();
-
-        extract($data, flags: EXTR_SKIP);
-
-        /** @phpstan-ignore-next-line */
-        return eval("return {$eval};");
-    }
-
-    public function __get(string $name)
-    {
-        return $this->getData($name) ?? $this->view->{$name};
-    }
-
-    public function __call(string $name, array $arguments)
-    {
-        return $this->view->{$name}(...$arguments);
     }
 }

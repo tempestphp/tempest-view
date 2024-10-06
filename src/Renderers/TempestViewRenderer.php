@@ -135,7 +135,19 @@ final class TempestViewRenderer implements ViewRenderer
         $path = $view->getPath();
 
         if (! str_ends_with($path, '.php')) {
-            return $this->evalContentIsolated($view, $path);
+            ob_start();
+
+            try {
+                // TODO: find a better way of dealing with views that declare strict types
+                $path = str_replace('declare(strict_types=1);', '', $path);
+
+                /** @phpstan-ignore-next-line */
+                eval('?>' . $path . '<?php');
+            } catch (ParseError) {
+                return $path;
+            }
+
+            return ob_get_clean();
         }
 
         $discoveryLocations = $this->kernel->discoveryLocations;
@@ -149,7 +161,7 @@ final class TempestViewRenderer implements ViewRenderer
             throw new Exception("View {$path} not found");
         }
 
-        return $this->resolveContentIsolated($view, $path);
+        return $this->resolveContentIsolated($path, $view->getData());
     }
 
     private function resolveViewComponent(GenericElement $element): ?ViewComponent
@@ -227,9 +239,9 @@ final class TempestViewRenderer implements ViewRenderer
     private function renderViewComponent(View $view, ViewComponent $viewComponent, GenericElement $element): string
     {
         $renderedContent = preg_replace_callback(
-            pattern: '/<x-slot\s*(name="(?<name>\w+)")?((\s*\/>)|><\/x-slot>)/',
+            pattern: '/<x-slot\s*(name="(?<name>\w+)")?\s*\/>/',
             callback: function ($matches) use ($view, $element) {
-                $name = $matches['name'] ?: 'slot';
+                $name = $matches['name'] ?? 'slot';
 
                 $slot = $element->getSlot($name);
 
@@ -273,7 +285,7 @@ final class TempestViewRenderer implements ViewRenderer
             $content[] = $this->renderElement($view, $child);
         }
 
-        $content = implode('', $content);
+        $content = implode(PHP_EOL, $content);
 
         $attributes = [];
 
@@ -294,52 +306,13 @@ final class TempestViewRenderer implements ViewRenderer
         return "<{$element->getTag()}{$attributes}>{$content}</{$element->getTag()}>";
     }
 
-    private function resolveContentIsolated(View $_view, string $_path): string
+    private function resolveContentIsolated(string $_path, array $_data): string
     {
         ob_start();
-
-        $_data = $_view->getData();
 
         extract($_data, flags: EXTR_SKIP);
 
         include $_path;
-
-        $content = ob_get_clean();
-
-        // If the view defines local variables, we add them here to the view object as well
-        foreach (get_defined_vars() as $key => $value) {
-            if (! $_view->has($key)) {
-                $_view->data(...[$key => $value]);
-            }
-        }
-
-        return $content;
-    }
-
-    private function evalContentIsolated(View $_view, string $_content): string
-    {
-        ob_start();
-
-        $_data = $_view->getData();
-
-        extract($_data, flags: EXTR_SKIP);
-
-        try {
-            // TODO: find a better way of dealing with views that declare strict types
-            $_content = str_replace('declare(strict_types=1);', '', $_content);
-
-            /** @phpstan-ignore-next-line */
-            eval('?>' . $_content . '<?php');
-        } catch (ParseError) {
-            return $_content;
-        }
-
-        // If the view defines local variables, we add them here to the view object as well
-        foreach (get_defined_vars() as $key => $value) {
-            if (! $_view->has($key)) {
-                $_view->data(...[$key => $value]);
-            }
-        }
 
         return ob_get_clean();
     }

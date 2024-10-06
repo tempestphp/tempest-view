@@ -1,19 +1,15 @@
 {
     "name": "tempest/view",
-    "description": "A component for view handling.",
     "license": "MIT",
     "minimum-stability": "dev",
     "require": {
         "php": "^8.3",
         "masterminds/html5": "^2.9",
-        "tempest/core": "dev-main",
-        "tempest/container": "dev-main",
-        "tempest/validation": "dev-main"
+        "tempest/core": "self.version",
+        "tempest/container": "self.version",
+        "tempest/validation": "self.version"
     },
     "autoload": {
-        "files": [
-            "src/functions.php"
-        ],
         "psr-4": {
             "Tempest\\View\\": "src"
         }

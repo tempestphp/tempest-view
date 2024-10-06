@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tempest\View\Elements;
 
-use DOMAttr;
 use DOMElement;
 use DOMNode;
 use DOMText;
@@ -49,11 +48,8 @@ final class ElementFactory
         } else {
             $attributes = [];
 
-            /** @var DOMAttr $attribute */
             foreach ($node->attributes as $attribute) {
-                $name = (string) \Tempest\Support\str($attribute->name)->camel();
-
-                $attributes[$name] = $attribute->value;
+                $attributes[$attribute->name] = $attribute->value;
             }
 
             $element = new GenericElement(

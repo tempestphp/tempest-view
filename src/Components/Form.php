@@ -19,10 +19,9 @@ final readonly class Form implements ViewComponent
     {
         $action = $element->getAttribute('action');
         $method = $element->getAttribute('method') ?? 'post';
-        $enctype = $element->hasAttribute('enctype') ? sprintf('enctype="%s"', $element->getAttribute('enctype')) : '';
 
         return <<<HTML
-<form action="{$action}" method="{$method}" {$enctype}>
+<form action="{$action}" method="{$method}">
     <x-slot />
 </form>
 HTML;
