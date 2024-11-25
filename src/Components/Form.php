@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Tempest\View\Components;
 
-use Tempest\View\Elements\ViewComponentElement;
+use Tempest\View\Elements\GenericElement;
 use Tempest\View\ViewComponent;
+use Tempest\View\ViewRenderer;
 
 final readonly class Form implements ViewComponent
 {
@@ -14,14 +15,13 @@ final readonly class Form implements ViewComponent
         return 'x-form';
     }
 
-    public function compile(ViewComponentElement $element): string
+    public function render(GenericElement $element, ViewRenderer $renderer): string
     {
         $action = $element->getAttribute('action');
         $method = $element->getAttribute('method') ?? 'post';
-        $enctype = $element->hasAttribute('enctype') ? sprintf('enctype="%s"', $element->getAttribute('enctype')) : '';
 
         return <<<HTML
-<form action="{$action}" method="{$method}" {$enctype}>
+<form action="{$action}" method="{$method}">
     <x-slot />
 </form>
 HTML;

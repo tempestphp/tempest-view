@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tempest\View\Elements;
 
 use Tempest\View\Element;
+use Tempest\View\ViewRenderer;
 
 final class CollectionElement implements Element
 {
@@ -21,14 +22,14 @@ final class CollectionElement implements Element
         return $this->elements;
     }
 
-    public function compile(): string
+    public function render(ViewRenderer $renderer): string
     {
-        $compiled = [];
+        $rendered = [];
 
         foreach ($this->elements as $element) {
-            $compiled[] = $element->compile();
+            $rendered[] = $element->render($renderer);
         }
 
-        return implode(PHP_EOL, $compiled);
+        return implode(PHP_EOL, $rendered);
     }
 }

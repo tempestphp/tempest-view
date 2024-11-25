@@ -4,23 +4,39 @@ declare(strict_types=1);
 
 namespace Tempest\View\Attributes;
 
+use Exception;
 use Tempest\View\Attribute;
 use Tempest\View\Element;
-use Tempest\View\Elements\PhpForeachElement;
-use Tempest\View\Exceptions\InvalidElement;
+use Tempest\View\Elements\EmptyElement;
+use Tempest\View\Elements\GenericElement;
 
 final readonly class ForelseAttribute implements Attribute
 {
-    public function apply(Element $element): ?Element
+    public function apply(Element $element): Element
     {
-        $previous = $element->getPrevious()?->unwrap(PhpForeachElement::class);
+        $previous = $element->getPrevious();
 
-        if (! $previous instanceof PhpForeachElement) {
-            throw new InvalidElement('There needs to be a foreach element before an forelse element.');
+        if (
+            ! $previous instanceof GenericElement
+            || ! $previous->hasAttribute('foreach')
+        ) {
+            throw new Exception('No valid foreach loop found in preceding element');
         }
 
-        $previous->setElse($element);
+        $foreach = $previous->getAttribute('foreach', eval: false);
 
-        return null;
+        preg_match(
+            '/\$this->(?<collection>\w+) as \$(?<item>\w+)/',
+            $foreach,
+            $matches,
+        );
+
+        $collection = $element->getData()[$matches['collection']] ?? [];
+
+        if ($collection) {
+            return new EmptyElement();
+        }
+
+        return $element;
     }
 }

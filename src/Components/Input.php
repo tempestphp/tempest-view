@@ -6,8 +6,9 @@ namespace Tempest\View\Components;
 
 use Tempest\Http\Session\Session;
 use Tempest\Validation\Rule;
-use Tempest\View\Elements\ViewComponentElement;
+use Tempest\View\Elements\GenericElement;
 use Tempest\View\ViewComponent;
+use Tempest\View\ViewRenderer;
 
 final readonly class Input implements ViewComponent
 {
@@ -21,7 +22,7 @@ final readonly class Input implements ViewComponent
         return 'x-input';
     }
 
-    public function compile(ViewComponentElement $element): string
+    public function render(GenericElement $element, ViewRenderer $renderer): string
     {
         $name = $element->getAttribute('name');
         $label = $element->getAttribute('label');

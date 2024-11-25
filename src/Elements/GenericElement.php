@@ -4,20 +4,18 @@ declare(strict_types=1);
 
 namespace Tempest\View\Elements;
 
-use function Tempest\Support\str;
 use Tempest\View\Element;
+use Tempest\View\View;
 
 final class GenericElement implements Element
 {
     use IsElement;
 
-    private array $rawAttributes = [];
-
     public function __construct(
+        private readonly View $view,
         private readonly string $tag,
-        array $attributes,
+        private readonly array $attributes,
     ) {
-        $this->attributes = $attributes;
     }
 
     public function getTag(): string
@@ -25,47 +23,94 @@ final class GenericElement implements Element
         return $this->tag;
     }
 
-    public function addRawAttribute(string $attribute): self
+    public function getAttributes(): array
     {
-        $this->rawAttributes[] = $attribute;
-
-        return $this;
+        return $this->attributes;
     }
 
-    public function compile(): string
+    public function hasAttribute(string $name): bool
     {
-        $content = [];
+        $name = ltrim($name, ':');
 
+        return array_key_exists($name, $this->attributes)
+            || array_key_exists(":{$name}", $this->attributes);
+    }
+
+    public function getAttribute(string $name, bool $eval = true): mixed
+    {
+        $name = ltrim($name, ':');
+
+        foreach ($this->attributes as $attributeName => $value) {
+            if ($attributeName === $name) {
+                return $value;
+            }
+
+            if ($attributeName === ":{$name}") {
+                if (! $value) {
+                    return null;
+                }
+
+                if (! $eval) {
+                    return $value;
+                }
+
+                // TODO: possible refactor with TextElement:25-29 ?
+                if (str_starts_with($value, '$this->')) {
+                    $result = $this->view->eval($value);
+
+                    if (is_bool($result) || is_string($result)) {
+                        return $result;
+                    }
+
+                    return (bool) $result;
+                }
+
+                return $this->getData()[ltrim($value, '$')] ?? '';
+            }
+        }
+
+        return null;
+    }
+
+    public function getSlot(string $name = 'slot'): ?Element
+    {
         foreach ($this->getChildren() as $child) {
-            $content[] = $child->compile();
-        }
-
-        $content = implode('', $content);
-
-        $attributes = [];
-
-        foreach ($this->getAttributes() as $name => $value) {
-            $name = str($name);
-
-            if ($name->startsWith(':')) {
-                $name = ':' . $name->kebab()->toString();
-            } else {
-                $name = $name->kebab()->toString();
+            if (! $child instanceof SlotElement) {
+                continue;
             }
 
-            if ($value) {
-                $attributes[] = $name . '="' . $value . '"';
-            } else {
-                $attributes[] = $name;
+            if ($child->matches($name)) {
+                return $child;
             }
         }
 
-        $attributes = implode(' ', [...$attributes, ...$this->rawAttributes]);
+        if ($name === 'slot') {
+            $elements = [];
 
-        if ($attributes !== '') {
-            $attributes = ' ' . $attributes;
+            foreach ($this->getChildren() as $child) {
+                if ($child instanceof SlotElement) {
+                    continue;
+                }
+
+                $elements[] = $child;
+            }
+
+            return new CollectionElement($elements);
         }
 
-        return "<{$this->tag}{$attributes}>{$content}</{$this->tag}>";
+        return null;
+    }
+
+    public function getData(?string $key = null): mixed
+    {
+        $parentData = $this->getParent()?->getData() ?? [];
+
+        $data = [...$this->view->getData(), ...$parentData, ...$this->data];
+
+        if ($key) {
+            return $data[$key] ?? null;
+        }
+
+        return $data;
     }
 }

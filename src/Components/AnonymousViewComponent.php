@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Tempest\View\Components;
 
-use Tempest\View\Elements\ViewComponentElement;
+use Tempest\View\Elements\GenericElement;
 use Tempest\View\ViewComponent;
+use Tempest\View\ViewRenderer;
 
 final readonly class AnonymousViewComponent implements ViewComponent
 {
@@ -20,7 +21,7 @@ final readonly class AnonymousViewComponent implements ViewComponent
         return 'x-component';
     }
 
-    public function compile(ViewComponentElement $element): string
+    public function render(GenericElement $element, ViewRenderer $renderer): string
     {
         return $this->contents;
     }
