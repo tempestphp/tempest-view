@@ -6,7 +6,7 @@ namespace Tempest\View\Exceptions;
 
 use Exception;
 
-final class InvalidDataAttribute extends Exception
+final class DataAttributeWasInvalid extends Exception
 {
     public function __construct(string $name, string $value)
     {

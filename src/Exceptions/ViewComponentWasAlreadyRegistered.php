@@ -8,7 +8,7 @@ use Exception;
 use Tempest\Reflection\ClassReflector;
 use Tempest\View\Components\AnonymousViewComponent;
 
-final class DuplicateViewComponent extends Exception
+final class ViewComponentWasAlreadyRegistered extends Exception
 {
     public function __construct(
         string $name,

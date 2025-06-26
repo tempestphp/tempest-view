@@ -6,7 +6,7 @@ namespace Tempest\View\Exceptions;
 
 use Exception;
 
-final class InvalidElement extends Exception
+final class ElementWasInvalid extends Exception
 {
     // TODO: proper messages
 }
