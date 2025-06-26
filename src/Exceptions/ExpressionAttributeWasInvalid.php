@@ -7,7 +7,7 @@ namespace Tempest\View\Exceptions;
 use Exception;
 use Stringable;
 
-final class InvalidExpressionAttribute extends Exception
+final class ExpressionAttributeWasInvalid extends Exception
 {
     public function __construct(Stringable $value)
     {

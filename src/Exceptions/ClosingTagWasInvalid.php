@@ -4,7 +4,7 @@ namespace Tempest\View\Exceptions;
 
 use Exception;
 
-final class InvalidClosingTag extends Exception
+final class ClosingTagWasInvalid extends Exception
 {
     public function __construct(string $openTag, string $closingTag)
     {

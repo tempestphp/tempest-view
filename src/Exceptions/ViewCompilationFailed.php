@@ -9,7 +9,7 @@ use Throwable;
 
 use function Tempest\Support\str;
 
-final class ViewCompilationError extends Exception
+final class ViewCompilationFailed extends Exception
 {
     public function __construct(string $path, string $content, Throwable $previous)
     {
