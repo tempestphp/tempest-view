@@ -5,10 +5,10 @@
     "minimum-stability": "dev",
     "require": {
         "php": "^8.5",
-        "tempest/core": "3.x-dev",
-        "tempest/container": "3.x-dev",
-        "tempest/validation": "3.x-dev",
-        "tempest/clock": "3.x-dev",
+        "tempest/core": "3.2.0",
+        "tempest/container": "3.2.0",
+        "tempest/validation": "3.2.0",
+        "tempest/clock": "3.2.0",
         "league/commonmark": "^2.7",
         "symfony/cache": "^7.3"
     },
