@@ -26,21 +26,19 @@ trait IsElement
 
     public function getAttributes(): array
     {
-        if ($this instanceof WrapsElement) {
-            $wrappingAttributes = $this->getWrappingElement()->getAttributes();
-        } else {
-            $wrappingAttributes = [];
-        }
+        $wrappingAttributes = $this instanceof WrapsElement ? $this->getWrappingElement()->getAttributes() : [];
 
         $attributes = [...$this->attributes, ...$wrappingAttributes];
 
         $tailingAttributes = [];
 
         foreach ($attributes as $name => $value) {
-            if ($name === ':foreach' || $name === ':if') {
-                unset($attributes[$name]);
-                $tailingAttributes[$name] = $value;
+            if ($name !== ':foreach' && $name !== ':if') {
+                continue;
             }
+
+            unset($attributes[$name]);
+            $tailingAttributes[$name] = $value;
         }
 
         // Tailing attributes are reversed because they need to be applied in reverse order
