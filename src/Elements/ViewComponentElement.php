@@ -41,7 +41,8 @@ final class ViewComponentElement implements Element, WithToken
         private readonly ViewCache $viewCache,
         private readonly ViewComponent $viewComponent,
         array $attributes,
-    ) {
+    )
+    {
         $this->attributes = $attributes;
 
         $this->viewComponentAttributes = arr($attributes)
@@ -99,11 +100,7 @@ final class ViewComponentElement implements Element, WithToken
     {
         $slots = $this->getSlots();
 
-        $compiled = str($this->viewComponent->contents);
-
-        $compiled = $this->applyFallthroughAttributes($compiled);
-
-        $compiled = $compiled
+        $compiled = $this->compileComponent()
             ->prepend(
                 sprintf(
                     '<?php return function ($attributes, $slots, $scopedVariables %s %s %s) { extract($scopedVariables, EXTR_SKIP); ?>',
@@ -113,11 +110,6 @@ final class ViewComponentElement implements Element, WithToken
                 ),
             )
             ->append('<?php };');
-
-        $compiled = str($this->compileSlotTokens(
-            tokens: TempestViewParser::ast($compiled->toString()),
-            slots: $slots,
-        ));
 
         $compiledView = $this->compiler->compileWithSourceMap(
             $compiled->toString(),
@@ -154,21 +146,70 @@ final class ViewComponentElement implements Element, WithToken
         );
     }
 
-    private function compileSlotTokens(iterable $tokens, ImmutableArray $slots, bool $parentIsComponent = false): string
+    private function compileComponent(): ImmutableString
+    {
+        $tokens = TempestViewParser::ast($this->viewComponent->contents);
+        $slots = $this->getSlots();
+        $buffer = '';
+
+        foreach ($tokens as $i => $token) {
+            $shouldApplyFallthrough = $i === 0
+                && $token->type === TokenType::OPEN_TAG_START
+                && $token->tag !== 'x-slot';
+
+            if ($shouldApplyFallthrough) {
+                $attributes = arr($token->htmlAttributes)
+                    ->map(fn (string $value) => new MutableString($value));
+
+                foreach (['class', 'style', 'id'] as $name) {
+                    $attributes = $this->applyFallthroughAttribute($attributes, $name);
+                }
+
+                $attributeString = $attributes
+                    ->map(fn (MutableString $value, string $key) => sprintf('%s="%s"', $key, $value->trim()))
+                    ->implode(' ')
+                    ->when(
+                        fn (ImmutableString $s) => $s->isNotEmpty(),
+                        fn (ImmutableString $s) => $s->prepend(' '),
+                    );
+
+                $tag = str($token->content)->afterFirst('<')->trim()->toString();
+
+                $buffer .= sprintf('<%s%s>', $tag, $attributeString);
+
+                $buffer .= $this->compileSlotTokens(
+                    tokens: $token->children,
+                    slots: $slots,
+                    parentIsComponent: $this->isNestedComponentToken($token),
+                );
+
+                if ($token->closingToken?->type !== TokenType::SELF_CLOSING_TAG_END) {
+                    $buffer .= $token->closingToken?->compile();
+                }
+            } else {
+                $buffer .= $this->compileSlotTokens(
+                    tokens: [$token],
+                    slots: $slots,
+                );
+            }
+        }
+
+        return str($buffer);
+    }
+
+    private function compileSlotTokens(
+        iterable $tokens,
+        ImmutableArray $slots,
+        bool $parentIsComponent = false,
+    ): string
     {
         $buffer = '';
 
         foreach ($tokens as $token) {
-            if (! $token instanceof Token) {
-                continue;
-            }
-
             if ($token->tag === 'x-slot') {
                 if ($parentIsComponent && $token->getAttribute('name') !== null) {
                     // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
-                    $buffer .= $token->content;
-                    $buffer .= $token->compileAttributes();
-                    $buffer .= $token->endingToken?->compile();
+                    $buffer .= $this->compileRegularOpeningTag($token);
                     $buffer .= $this->compileSlotTokens($token->children, $slots);
                     $buffer .= $token->closingToken?->compile();
                 } else {
@@ -183,9 +224,7 @@ final class ViewComponentElement implements Element, WithToken
                 continue;
             }
 
-            $buffer .= $token->content;
-            $buffer .= $token->compileAttributes();
-            $buffer .= $token->endingToken?->compile();
+            $buffer .= $this->compileRegularOpeningTag($token);
             $buffer .= $this->compileSlotTokens(
                 tokens: $token->children,
                 slots: $slots,
@@ -197,9 +236,16 @@ final class ViewComponentElement implements Element, WithToken
         return $buffer;
     }
 
+    private function compileRegularOpeningTag(Token $token): string
+    {
+        return $token->content
+            . $token->compileAttributes()
+            . $token->endingToken?->compile();
+    }
+
     private function compileSlotToken(Token $slotToken, ImmutableArray $slots): string
     {
-        $name = $slotToken->getAttribute('name') ?: Slot::DEFAULT;
+        $name = $this->resolveSlotName($slotToken);
         $slot = $slots[$name] ?? null;
         $default = $slotToken->compileChildren();
 
@@ -228,6 +274,25 @@ final class ViewComponentElement implements Element, WithToken
         }
 
         return $compiled;
+    }
+
+    private function resolveSlotName(Token $slotToken): string
+    {
+        $name = $slotToken->getAttribute('name');
+
+        if ($name !== null && $name !== '') {
+            return $name;
+        }
+
+        if (preg_match('/\sname\s*=\s*"(?<name>[\w-]+)"/', $slotToken->content, $matches) === 1) {
+            return $matches['name'];
+        }
+
+        if (preg_match("/\sname\s*=\s*'(?<name>[\\w-]+)'/", $slotToken->content, $matches) === 1) {
+            return $matches['name'];
+        }
+
+        return Slot::DEFAULT;
     }
 
     private function isNestedComponentToken(Token $token): bool
@@ -262,34 +327,6 @@ final class ViewComponentElement implements Element, WithToken
         }
 
         return null;
-    }
-
-    private function applyFallthroughAttributes(ImmutableString $compiled): ImmutableString
-    {
-        return $compiled->replaceRegex(
-            regex: '/^<(?<tag>[\w-]+)(.*?["\s])?>/',
-            replace: function (array $matches): string {
-                /** @var Token $token */
-                $token = TempestViewParser::ast($matches[0])[0];
-
-                $attributes = arr($token->htmlAttributes)
-                    ->map(fn (string $value) => new MutableString($value));
-
-                foreach (['class', 'style', 'id'] as $name) {
-                    $attributes = $this->applyFallthroughAttribute($attributes, $name);
-                }
-
-                $attributeString = $attributes
-                    ->map(fn (MutableString $value, string $key) => sprintf('%s="%s"', $key, $value->trim()))
-                    ->implode(' ')
-                    ->when(
-                        fn (ImmutableString $s) => $s->isNotEmpty(),
-                        fn (ImmutableString $s) => $s->prepend(' '),
-                    );
-
-                return sprintf('<%s%s>', $matches['tag'], $attributeString);
-            },
-        );
     }
 
     private function applyFallthroughAttribute(ImmutableArray $attributes, string $name): ImmutableArray
