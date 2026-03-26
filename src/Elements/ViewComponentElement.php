@@ -200,12 +200,11 @@ final class ViewComponentElement implements Element, WithToken
         return str($buffer);
     }
 
-    private function compileSlotTokens(
-        iterable $tokens,
-        ?Token $parentToken = null,
-    ): string {
+    private function compileSlotTokens(iterable $tokens, ?Token $parentToken = null): string
+    {
         $buffer = '';
-        $isNestedComponentToken = $parentToken !== null && $this->isNestedComponentToken($parentToken);
+
+        $isNestedComponentToken = $parentToken !== null && $this->isViewComponentToken($parentToken);
 
         foreach ($tokens as $token) {
             if ($token->tag === 'x-slot') {
@@ -292,7 +291,7 @@ final class ViewComponentElement implements Element, WithToken
         return Slot::DEFAULT;
     }
 
-    private function isNestedComponentToken(Token $token): bool
+    private function isViewComponentToken(Token $token): bool
     {
         if ($token->tag === null) {
             return false;
