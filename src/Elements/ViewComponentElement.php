@@ -165,6 +165,7 @@ final class ViewComponentElement implements Element, WithToken
 
             if ($token->tag === 'x-slot') {
                 if ($parentIsComponent && $token->getAttribute('name') !== null) {
+                    // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
                     $buffer .= $token->content;
                     $buffer .= $token->compileAttributes();
                     $buffer .= $token->endingToken?->compile();
