@@ -41,8 +41,7 @@ final class ViewComponentElement implements Element, WithToken
         private readonly ViewCache $viewCache,
         private readonly ViewComponent $viewComponent,
         array $attributes,
-    )
-    {
+    ) {
         $this->attributes = $attributes;
 
         $this->viewComponentAttributes = arr($attributes)
@@ -100,7 +99,8 @@ final class ViewComponentElement implements Element, WithToken
     {
         $slots = $this->getSlots();
 
-        $compiled = $this->compileComponent()
+        $compiled = $this
+            ->compileComponent()
             ->prepend(
                 sprintf(
                     '<?php return function ($attributes, $slots, $scopedVariables %s %s %s) { extract($scopedVariables, EXTR_SKIP); ?>',
@@ -153,9 +153,7 @@ final class ViewComponentElement implements Element, WithToken
         $buffer = '';
 
         foreach ($tokens as $i => $token) {
-            $shouldApplyFallthrough = $i === 0
-                && $token->type === TokenType::OPEN_TAG_START
-                && $token->tag !== 'x-slot';
+            $shouldApplyFallthrough = $i === 0 && $token->type === TokenType::OPEN_TAG_START && $token->tag !== 'x-slot';
 
             if ($shouldApplyFallthrough) {
                 $attributes = arr($token->htmlAttributes)
@@ -201,8 +199,7 @@ final class ViewComponentElement implements Element, WithToken
         iterable $tokens,
         ImmutableArray $slots,
         bool $parentIsComponent = false,
-    ): string
-    {
+    ): string {
         $buffer = '';
 
         foreach ($tokens as $token) {
@@ -238,9 +235,7 @@ final class ViewComponentElement implements Element, WithToken
 
     private function compileRegularOpeningTag(Token $token): string
     {
-        return $token->content
-            . $token->compileAttributes()
-            . $token->endingToken?->compile();
+        return $token->content . $token->compileAttributes() . $token->endingToken?->compile();
     }
 
     private function compileSlotToken(Token $slotToken, ImmutableArray $slots): string
