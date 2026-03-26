@@ -13,6 +13,7 @@ use Tempest\View\Export\ViewObjectExporter;
 use Tempest\View\Parser\TempestViewCompiler;
 use Tempest\View\Parser\TempestViewParser;
 use Tempest\View\Parser\Token;
+use Tempest\View\Parser\TokenType;
 use Tempest\View\Slot;
 use Tempest\View\ViewCache;
 use Tempest\View\ViewComponent;
@@ -113,42 +114,10 @@ final class ViewComponentElement implements Element, WithToken
             )
             ->append('<?php };');
 
-        $compiled = $compiled->replaceRegex(
-            regex: '/<x-slot\s*(name="(?<name>[\w-]+)")?((\s*\/>)|>(?<default>(.|\n)*?)<\/x-slot>)/',
-            replace: function ($matches) use ($slots) {
-                $name = $matches['name'] ?: Slot::DEFAULT;
-
-                $slot = $slots[$name] ?? null;
-
-                $default = $matches['default'] ?? null;
-
-                if ($slot === null) {
-                    if ($default) {
-                        // There's no slot, but there's a default value in the view component
-                        return $default;
-                    }
-
-                    // A slot doesn't have any content, so we'll comment it out.
-                    // This is to prevent DOM parsing errors (slots in <head> tags is one example, see #937)
-                    return $this->environment->isLocal() ? '<!--' . $matches[0] . '-->' : '';
-                }
-
-                $slotElement = $this->getSlotElement($slot->name);
-
-                if ($slotElement === null) {
-                    return $default;
-                }
-
-                $compiled = $this->compiler->compileElement($slotElement);
-
-                // There's no default slot content, but there's a default value in the view component
-                if (trim($compiled) === '') {
-                    return $default;
-                }
-
-                return $compiled;
-            },
-        );
+        $compiled = str($this->compileSlotTokens(
+            tokens: TempestViewParser::ast($compiled->toString()),
+            slots: $slots,
+        ));
 
         $compiledView = $this->compiler->compileWithSourceMap(
             $compiled->toString(),
@@ -183,6 +152,94 @@ final class ViewComponentElement implements Element, WithToken
                 ? ', ' . $this->scopedVariables->map(fn (string $name) => "{$name}: \${$name}")->implode(', ')
                 : '',
         );
+    }
+
+    private function compileSlotTokens(iterable $tokens, ImmutableArray $slots, bool $parentIsComponent = false): string
+    {
+        $buffer = '';
+
+        foreach ($tokens as $token) {
+            if (! $token instanceof Token) {
+                continue;
+            }
+
+            if ($token->tag === 'x-slot') {
+                if ($parentIsComponent && $token->getAttribute('name') !== null) {
+                    $buffer .= $token->content;
+                    $buffer .= $token->compileAttributes();
+                    $buffer .= $token->endingToken?->compile();
+                    $buffer .= $this->compileSlotTokens($token->children, $slots);
+                    $buffer .= $token->closingToken?->compile();
+                } else {
+                    $buffer .= $this->compileSlotToken($token, $slots);
+                }
+
+                continue;
+            }
+
+            if ($token->type !== TokenType::OPEN_TAG_START) {
+                $buffer .= $token->compile();
+                continue;
+            }
+
+            $buffer .= $token->content;
+            $buffer .= $token->compileAttributes();
+            $buffer .= $token->endingToken?->compile();
+            $buffer .= $this->compileSlotTokens(
+                tokens: $token->children,
+                slots: $slots,
+                parentIsComponent: $this->isNestedComponentToken($token),
+            );
+            $buffer .= $token->closingToken?->compile();
+        }
+
+        return $buffer;
+    }
+
+    private function compileSlotToken(Token $slotToken, ImmutableArray $slots): string
+    {
+        $name = $slotToken->getAttribute('name') ?: Slot::DEFAULT;
+        $slot = $slots[$name] ?? null;
+        $default = $slotToken->compileChildren();
+
+        if ($slot === null) {
+            if ($default !== '') {
+                // There's no slot, but there's a default value in the view component
+                return $default;
+            }
+
+            // A slot doesn't have any content, so we'll comment it out.
+            // This is to prevent DOM parsing errors (slots in <head> tags is one example, see #937)
+            return $this->environment->isLocal() ? '<!--' . $slotToken->compile() . '-->' : '';
+        }
+
+        $slotElement = $this->getSlotElement($slot->name);
+
+        if ($slotElement === null) {
+            return $default;
+        }
+
+        $compiled = $this->compiler->compileElement($slotElement);
+
+        // There's no default slot content, but there's a default value in the view component
+        if (trim($compiled) === '') {
+            return $default;
+        }
+
+        return $compiled;
+    }
+
+    private function isNestedComponentToken(Token $token): bool
+    {
+        if ($token->tag === null) {
+            return false;
+        }
+
+        if (! str_starts_with($token->tag, 'x-')) {
+            return false;
+        }
+
+        return $token->tag !== 'x-slot';
     }
 
     private function getSlotElement(string $name): SlotElement|CollectionElement|null
