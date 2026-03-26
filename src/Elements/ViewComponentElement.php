@@ -34,6 +34,8 @@ final class ViewComponentElement implements Element, WithToken
 
     private ImmutableArray $viewComponentAttributes;
 
+    private ?ImmutableArray $slots = null;
+
     public function __construct(
         public readonly Token $token,
         private readonly Environment $environment,
@@ -76,6 +78,10 @@ final class ViewComponentElement implements Element, WithToken
     /** @return ImmutableArray<array-key, Slot> */
     public function getSlots(): ImmutableArray
     {
+        if ($this->slots !== null) {
+            return $this->slots;
+        }
+
         $slots = arr();
 
         $defaultTokens = [];
@@ -92,7 +98,9 @@ final class ViewComponentElement implements Element, WithToken
 
         $slots[Slot::DEFAULT] = Slot::default(...$defaultTokens);
 
-        return $slots;
+        $this->slots = $slots;
+
+        return $this->slots;
     }
 
     public function compile(): string
@@ -149,7 +157,6 @@ final class ViewComponentElement implements Element, WithToken
     private function compileComponent(): ImmutableString
     {
         $tokens = TempestViewParser::ast($this->viewComponent->contents);
-        $slots = $this->getSlots();
         $buffer = '';
 
         foreach ($tokens as $i => $token) {
@@ -177,8 +184,7 @@ final class ViewComponentElement implements Element, WithToken
 
                 $buffer .= $this->compileSlotTokens(
                     tokens: $token->children,
-                    slots: $slots,
-                    parentIsComponent: $this->isNestedComponentToken($token),
+                    parentToken: $token,
                 );
 
                 if ($token->closingToken?->type !== TokenType::SELF_CLOSING_TAG_END) {
@@ -187,7 +193,6 @@ final class ViewComponentElement implements Element, WithToken
             } else {
                 $buffer .= $this->compileSlotTokens(
                     tokens: [$token],
-                    slots: $slots,
                 );
             }
         }
@@ -197,20 +202,20 @@ final class ViewComponentElement implements Element, WithToken
 
     private function compileSlotTokens(
         iterable $tokens,
-        ImmutableArray $slots,
-        bool $parentIsComponent = false,
+        ?Token $parentToken = null,
     ): string {
         $buffer = '';
+        $isNestedComponentToken = $parentToken !== null && $this->isNestedComponentToken($parentToken);
 
         foreach ($tokens as $token) {
             if ($token->tag === 'x-slot') {
-                if ($parentIsComponent && $token->getAttribute('name') !== null) {
+                if ($isNestedComponentToken && $token->getAttribute('name') !== null) {
                     // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
                     $buffer .= $this->compileRegularOpeningTag($token);
-                    $buffer .= $this->compileSlotTokens($token->children, $slots);
+                    $buffer .= $this->compileSlotTokens(tokens: $token->children, parentToken: $token);
                     $buffer .= $token->closingToken?->compile();
                 } else {
-                    $buffer .= $this->compileSlotToken($token, $slots);
+                    $buffer .= $this->compileSlotToken($token);
                 }
 
                 continue;
@@ -222,11 +227,7 @@ final class ViewComponentElement implements Element, WithToken
             }
 
             $buffer .= $this->compileRegularOpeningTag($token);
-            $buffer .= $this->compileSlotTokens(
-                tokens: $token->children,
-                slots: $slots,
-                parentIsComponent: $this->isNestedComponentToken($token),
-            );
+            $buffer .= $this->compileSlotTokens(tokens: $token->children, parentToken: $token);
             $buffer .= $token->closingToken?->compile();
         }
 
@@ -238,8 +239,9 @@ final class ViewComponentElement implements Element, WithToken
         return $token->content . $token->compileAttributes() . $token->endingToken?->compile();
     }
 
-    private function compileSlotToken(Token $slotToken, ImmutableArray $slots): string
+    private function compileSlotToken(Token $slotToken): string
     {
+        $slots = $this->getSlots();
         $name = $this->resolveSlotName($slotToken);
         $slot = $slots[$name] ?? null;
         $default = $slotToken->compileChildren();
