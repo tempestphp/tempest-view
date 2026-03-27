@@ -213,12 +213,12 @@ final class ViewComponentElement implements Element, WithToken
     {
         $buffer = '';
 
-        $isNestedComponentToken = $parentToken !== null && $this->isViewComponentToken($parentToken);
+        $parentIsComponent = $parentToken !== null && $this->isViewComponentToken($parentToken);
 
         foreach ($tokens as $token) {
             if ($token->tag === 'x-slot') {
-                if ($isNestedComponentToken && $token->getAttribute('name') !== null) {
-                    // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
+                // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
+                if ($parentIsComponent && $token->getAttribute('name') !== null) {
                     $buffer .= $this->compileRegularOpeningTag($token);
                     $buffer .= $this->compileTokens(tokens: $token->children, parentToken: $token);
                     $buffer .= $token->closingToken?->compile();
