@@ -43,7 +43,8 @@ final class ViewComponentElement implements Element, WithToken
         private readonly ViewCache $viewCache,
         private readonly ViewComponent $viewComponent,
         array $attributes,
-    ) {
+    )
+    {
         $this->attributes = $attributes;
 
         $this->viewComponentAttributes = arr($attributes)
@@ -157,50 +158,58 @@ final class ViewComponentElement implements Element, WithToken
     private function compileComponent(): ImmutableString
     {
         $tokens = TempestViewParser::ast($this->viewComponent->contents);
+
         $buffer = '';
 
+        /**
+         * @var int $i
+         * @var Token $token
+         */
         foreach ($tokens as $i => $token) {
+            // Fallthrough attributes will be applied to the first element in the component.
             $shouldApplyFallthrough = $i === 0 && $token->type === TokenType::OPEN_TAG_START && $token->tag !== 'x-slot';
 
-            if ($shouldApplyFallthrough) {
-                $attributes = arr($token->htmlAttributes)
-                    ->map(fn (string $value) => new MutableString($value));
-
-                foreach (['class', 'style', 'id'] as $name) {
-                    $attributes = $this->applyFallthroughAttribute($attributes, $name);
-                }
-
-                $attributeString = $attributes
-                    ->map(fn (MutableString $value, string $key) => sprintf('%s="%s"', $key, $value->trim()))
-                    ->implode(' ')
-                    ->when(
-                        fn (ImmutableString $s) => $s->isNotEmpty(),
-                        fn (ImmutableString $s) => $s->prepend(' '),
-                    );
-
-                $tag = str($token->content)->afterFirst('<')->trim()->toString();
-
-                $buffer .= sprintf('<%s%s>', $tag, $attributeString);
-
-                $buffer .= $this->compileSlotTokens(
-                    tokens: $token->children,
-                    parentToken: $token,
-                );
-
-                if ($token->closingToken?->type !== TokenType::SELF_CLOSING_TAG_END) {
-                    $buffer .= $token->closingToken?->compile();
-                }
-            } else {
-                $buffer .= $this->compileSlotTokens(
+            if (! $shouldApplyFallthrough) {
+                // Anything else is is compiled like normal
+                $buffer .= $this->compileTokens(
                     tokens: [$token],
                 );
+
+                continue;
+            }
+
+            $attributes = arr($token->htmlAttributes)
+                ->map(fn (string $value) => new MutableString($value));
+
+            // class, style, and id are fallthrough attributes
+            $attributes = $this->applyFallthroughAttribute($attributes, 'class');
+            $attributes = $this->applyFallthroughAttribute($attributes, 'style');
+            $attributes = $this->applyFallthroughAttribute($attributes, 'id');
+
+            $attributeString = $attributes
+                ->map(fn (MutableString $value, string $key) => sprintf('%s="%s"', $key, $value->trim()))
+                ->implode(' ')
+                ->when(
+                    fn (ImmutableString $s) => $s->isNotEmpty(),
+                    fn (ImmutableString $s) => $s->prepend(' '),
+                );
+
+            $buffer .= sprintf('<%s%s>', $token->tag, $attributeString);
+
+            $buffer .= $this->compileTokens(
+                tokens: $token->children,
+                parentToken: $token,
+            );
+
+            if ($token->closingToken?->type !== TokenType::SELF_CLOSING_TAG_END) {
+                $buffer .= $token->closingToken?->compile();
             }
         }
 
         return str($buffer);
     }
 
-    private function compileSlotTokens(iterable $tokens, ?Token $parentToken = null): string
+    private function compileTokens(iterable $tokens, ?Token $parentToken = null): string
     {
         $buffer = '';
 
@@ -211,7 +220,7 @@ final class ViewComponentElement implements Element, WithToken
                 if ($isNestedComponentToken && $token->getAttribute('name') !== null) {
                     // Preserve named slots inside child components: they are outgoing slot-fillers for that child.
                     $buffer .= $this->compileRegularOpeningTag($token);
-                    $buffer .= $this->compileSlotTokens(tokens: $token->children, parentToken: $token);
+                    $buffer .= $this->compileTokens(tokens: $token->children, parentToken: $token);
                     $buffer .= $token->closingToken?->compile();
                 } else {
                     $buffer .= $this->compileSlotToken($token);
@@ -226,7 +235,7 @@ final class ViewComponentElement implements Element, WithToken
             }
 
             $buffer .= $this->compileRegularOpeningTag($token);
-            $buffer .= $this->compileSlotTokens(tokens: $token->children, parentToken: $token);
+            $buffer .= $this->compileTokens(tokens: $token->children, parentToken: $token);
             $buffer .= $token->closingToken?->compile();
         }
 
