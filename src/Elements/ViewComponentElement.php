@@ -43,8 +43,7 @@ final class ViewComponentElement implements Element, WithToken
         private readonly ViewCache $viewCache,
         private readonly ViewComponent $viewComponent,
         array $attributes,
-    )
-    {
+    ) {
         $this->attributes = $attributes;
 
         $this->viewComponentAttributes = arr($attributes)
