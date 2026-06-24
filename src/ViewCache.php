@@ -47,7 +47,7 @@ final class ViewCache
             $this->pool->save($cacheItem);
         }
 
-        return path($this->pool?->directory, $cacheItem->getKey() . '.php')->toString();
+        return path($this->pool->directory, $cacheItem->getKey() . '.php')->toString();
     }
 
     /**
