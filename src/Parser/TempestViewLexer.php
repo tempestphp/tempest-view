@@ -88,12 +88,18 @@ final class TempestViewLexer
 
         if ($length === 1) {
             $char = $this->html[$this->position++] ?? null;
+
+            if ($char === "\n") {
+                $this->line++;
+            }
+
             $this->current = $this->html[$this->position] ?? null;
             return $char ?? '';
         }
 
         $buffer = substr($this->html, $this->position, $length);
         $this->position += $length;
+        $this->line += substr_count($buffer, "\n");
         $this->current = $this->html[$this->position] ?? null;
 
         return $buffer;
